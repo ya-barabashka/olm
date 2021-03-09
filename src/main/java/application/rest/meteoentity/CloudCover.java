@@ -1,81 +1,129 @@
 package application.rest.meteoentity;
 
+import application.rest.geoentity.Region;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.io.File;
+import java.io.StringWriter;
+import java.util.DoubleSummaryStatistics;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class CloudCover implements Comparable<CloudCover> {
+public class CloudCover extends Meteo implements Comparable<CloudCover> {
 
-    private WeatherPK weatherPK;
-    private Float cloud;
     public static Map<WeatherPK,Float> cloudMap = new TreeMap<WeatherPK,Float>();
 
-    public CloudCover() {
-    }
-
-    public CloudCover(WeatherPK weatherPK, Float cloud) {
-        this.weatherPK = weatherPK;
-        this.cloud = cloud;
+    public CloudCover(WeatherPK weatherPK, Float value, Region region) {
+        super(weatherPK, value, region);
         if(cloudMap.isEmpty() || !cloudMap.containsKey(weatherPK)){
-            cloudMap.put(weatherPK,cloud);
+            cloudMap.put(weatherPK,value);
         }
         if(cloudMap.containsKey(weatherPK)){
             cloudMap.remove(weatherPK);
-            cloudMap.put(weatherPK,cloud);
+            cloudMap.put(weatherPK,value);
         }
     }
 
-    public WeatherPK getWeatherPK() {
-        return weatherPK;
+    @Override
+    public void clear() {
+        cloudMap.clear();
     }
 
-    public void setWeatherPK(WeatherPK weatherPK) {
-        this.weatherPK = weatherPK;
+    @Override
+    public DoubleSummaryStatistics getSummaryStatistics() {
+        return cloudMap.values().stream()
+                .mapToDouble((x) -> x)
+                .summaryStatistics();
     }
 
-    public Float getCloud() {
-        return cloud;
-    }
+    @Override
+    public String toJson() throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode rootNode = mapper.createObjectNode();
 
-    public void setCloud(Float cloud) {
-        this.cloud = cloud;
-    }
+        ObjectNode georegion = mapper.createObjectNode();
+        georegion.put("name", region.getName());
 
-    public static Map<WeatherPK, Float> getCloudMap() {
-        return cloudMap;
-    }
+        ObjectNode geocenter = mapper.createObjectNode();
+        geocenter.put("latitude", region.getGeoCenterPoint().getLatitude());
+        geocenter.put("longitude", region.getGeoCenterPoint().getLongitude());
+        georegion.set("geocenter", geocenter);
 
-    public static Map<WeatherPK,Float> getCloudForObservationTime(Integer observation){
-        Map<WeatherPK,Float> cloud = new TreeMap<WeatherPK,Float>();
-        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
-            WeatherPK key = (WeatherPK)cloudEntry.getKey();
-            if(key.getObservation() == observation){
-                cloud.put(key,(Float)cloudEntry.getValue());
-            }
+        ObjectNode rectangularBoundaries = mapper.createObjectNode();
+        rectangularBoundaries.put("latmax", region.getRectangularBoundaries().getLatMax());
+        rectangularBoundaries.put("lonmin", region.getRectangularBoundaries().getLonMin());
+        rectangularBoundaries.put("latmin", region.getRectangularBoundaries().getLatMin());
+        rectangularBoundaries.put("lonmax", region.getRectangularBoundaries().getLonMax());
+        georegion.set("rectangularBoundaries", rectangularBoundaries);
+
+        ArrayNode arbitraryBoundaries = mapper.valueToTree(region.getArbitraryBoundaries());
+        georegion.putArray("arbitraryBoundaries").addAll(arbitraryBoundaries);
+
+        ObjectNode meteo = mapper.createObjectNode();
+
+        for(Map.Entry entry : cloudMap.entrySet()){
+            ObjectNode weatherPK = mapper.createObjectNode();
+            WeatherPK key = (WeatherPK)entry.getKey();
+            weatherPK.put("latitude", key.getLatitude());
+            weatherPK.put("longitude", key.getLongitude());
+            weatherPK.put("level", key.getLevel());
+            weatherPK.put("observation", key.getObservation());
+            weatherPK.put("forecast", key.getForecast());
+
+            meteo.put(weatherPK.toString(), ((Float)entry.getValue()).toString());
         }
-        return cloud;
+
+        DoubleSummaryStatistics summaryStatistics = getSummaryStatistics();
+
+        ObjectNode statistics = mapper.createObjectNode();
+        statistics.put("count", summaryStatistics.getCount());
+        statistics.put("sum", summaryStatistics.getSum());
+        statistics.put("min", summaryStatistics.getMin());
+        statistics.put("average", summaryStatistics.getAverage());
+        statistics.put("max", summaryStatistics.getMax());
+
+        rootNode.set("cloudMap", meteo);
+        rootNode.set("statistics", statistics);
+
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
     }
 
-    public static Map<WeatherPK,Float> getCloudForLevel(Double level){
-        Map<WeatherPK,Float> cloud = new TreeMap<WeatherPK,Float>();
-        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
-            WeatherPK key = (WeatherPK)cloudEntry.getKey();
-            if(key.getLevel().equals(level)){
-                cloud.put(key,(Float)cloudEntry.getValue());
-            }
-        }
-        return cloud;
-    }
 
-    public static Float getValueByKey(WeatherPK weatherPK){
-        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
-            WeatherPK key = (WeatherPK)cloudEntry.getKey();
-            if(key.equals(weatherPK)){
-                return (Float)cloudEntry.getValue();
-            }
-        }
-        return null;
-    }
+//    public static Map<WeatherPK,Float> getCloudForObservationTime(Integer observation){
+//        Map<WeatherPK,Float> cloud = new TreeMap<WeatherPK,Float>();
+//        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
+//            WeatherPK key = (WeatherPK)cloudEntry.getKey();
+//            if(key.getObservation() == observation){
+//                cloud.put(key,(Float)cloudEntry.getValue());
+//            }
+//        }
+//        return cloud;
+//    }
+//
+//    public static Map<WeatherPK,Float> getCloudForLevel(Double level){
+//        Map<WeatherPK,Float> cloud = new TreeMap<WeatherPK,Float>();
+//        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
+//            WeatherPK key = (WeatherPK)cloudEntry.getKey();
+//            if(key.getLevel().equals(level)){
+//                cloud.put(key,(Float)cloudEntry.getValue());
+//            }
+//        }
+//        return cloud;
+//    }
+//
+//    public static Float getValueByKey(WeatherPK weatherPK){
+//        for(Map.Entry cloudEntry : CloudCover.getCloudMap().entrySet()){
+//            WeatherPK key = (WeatherPK)cloudEntry.getKey();
+//            if(key.equals(weatherPK)){
+//                return (Float)cloudEntry.getValue();
+//            }
+//        }
+//        return null;
+//    }
 
 //    public static void update(){
 //        List<WindPK> keyList = new ArrayList<WindPK>(CloudCover.getCloudMap().keySet());
@@ -99,41 +147,6 @@ public class CloudCover implements Comparable<CloudCover> {
 //            }
 //        }
 //    }
-
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 19 * hash + Objects.hashCode(this.weatherPK);
-        hash = 19 * hash + Objects.hashCode(this.cloud);
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final CloudCover other = (CloudCover) obj;
-        if (!Objects.equals(this.weatherPK, other.weatherPK)) {
-            return false;
-        }
-        if (!Objects.equals(this.cloud, other.cloud)) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        return "windPK=" + weatherPK + ", "
-                + "cloud=" + cloud;
-    }
 
     @Override
     public int compareTo(CloudCover other) {

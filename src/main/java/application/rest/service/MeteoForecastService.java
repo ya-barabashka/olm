@@ -1,9 +1,11 @@
 package application.rest.service;
 
+import application.rest.geoentity.Region;
 import application.rest.handler.LocationHandler;
 import application.rest.handler.MeteoDataHandler;
 import application.rest.handler.WeatherData;
 import ucar.ma2.InvalidRangeException;
+import ucar.unidata.geoloc.LatLonRect;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,13 +26,13 @@ public class MeteoForecastService {
         this.meteoDataHandler = meteoDataHandler;
     }
 
-    public List<WeatherData> getWindDataListByObservationTimeAndLevel(Integer observation, Double level){
-        return this.meteoDataHandler.getWindDataListByObservationTimeAndLevel(observation,level);
-    }
-
-    public List<WeatherData> getWindDataListByObservationTime(Integer observation){
-        return this.meteoDataHandler.getWindDataListByObservationTime(observation);
-    }
+//    public List<WeatherData> getWindDataListByObservationTimeAndLevel(Integer observation, Double level){
+//        return this.meteoDataHandler.getWindDataListByObservationTimeAndLevel(observation,level);
+//    }
+//
+//    public List<WeatherData> getWindDataListByObservationTime(Integer observation){
+//        return this.meteoDataHandler.getWindDataListByObservationTime(observation);
+//    }
 
     public void download(){
         this.meteoDataHandler.download();
@@ -40,8 +42,8 @@ public class MeteoForecastService {
         return this.meteoDataHandler.isEmpty();
     }
 
-    public Boolean init() throws IOException, InvalidRangeException, InterruptedException {
-        return this.meteoDataHandler.init();
+    public Boolean init(/*LatLonRect rect*/ Region region) throws IOException, InvalidRangeException, InterruptedException {
+        return this.meteoDataHandler.init(region);
     }
 
     public List<String> getValidationList(){

@@ -1,47 +1,105 @@
 package application.rest.handler;
 
-import application.rest.geoentity.RegionPK;
-import application.rest.location.Coordinate;
+import application.rest.geoentity.Region;
 import application.rest.location.Location;
-import application.rest.meteoentity.WeatherPK;
-import application.rest.service.MeteoForecastService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import ucar.ma2.InvalidRangeException;
+import ucar.unidata.geoloc.LatLonPoint;
+import ucar.unidata.geoloc.LatLonPointImpl;
+import ucar.unidata.geoloc.LatLonRect;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public class LocationHandler {
 
     private final static String GEOCENTER_INPUT_FILE_ROOT = "src/main/resources/static/boundaries/geocenter.csv";
+    private final static String NEW_GEOCENTER_INPUT_FILE_ROOT = "src/main/resources/static/boundaries/geocent.csv";
     private final static String BOUNDARIES_INPUT_FILES_DIR_ROOT = "src/main/resources/static/boundaries/all_regions/";
     //    private final static String GRIB2_INPUT_FILES_DIR_ROOT = "src/main/resources/static/grib2/";
-    private Map<String, Weather> regions = new HashMap<>();
-    public static Map<RegionPK, WeatherSummaryStatistics> regionalStatistics = new HashMap<>();
-    public static Map<RegionPK, List<Weather>> regionalWindDataList = new HashMap<>();
-    private MeteoForecastService meteoForecastService;
-    public static Map<String, Coordinate> geocenter = new HashMap<>();
+    public static List<Region> regions = new ArrayList<>();
 
-    static{
-        geocenter = initGeoCenterCollection();
+    public LocationHandler() {
+        regions = init();
     }
 
-    public LocationHandler(String observationHour, String validationHour) throws IOException, InterruptedException, InvalidRangeException {
-        this.meteoForecastService = new MeteoForecastService(observationHour, validationHour);
-        this.meteoForecastService.init();
+    private LatLonRect getRectangularBoundariesOfUkrainianRegion(String regionName){
+        File file = getTargetRegionFile(regionName);
+        List<LatLonPoint>arr = getArbitraryBoundariesOfUkrainianRegion(file);
+        Double max_lat = getMaxLat(arr);
+        Double min_lon = getMinLon(arr);
+        Double min_lat = getMinLat(arr);
+        Double max_lon = getMaxLon(arr);
+        LatLonPoint minPoint = new LatLonPointImpl(max_lat, min_lon);
+        LatLonPoint maxPoint = new LatLonPointImpl(min_lat, max_lon);
+        System.out.println("Rect: " + new LatLonRect(minPoint, maxPoint));
+        return new LatLonRect(minPoint, maxPoint);
     }
 
-    public LocationHandler(MeteoForecastService meteoForecastService) throws IOException, InterruptedException, InvalidRangeException {
-        this.meteoForecastService = meteoForecastService;
-        this.meteoForecastService.init();
-    }
+    public void writeIntoCsv() throws FileNotFoundException {
+        BufferedReader csvReader = new BufferedReader(new FileReader(GEOCENTER_INPUT_FILE_ROOT));
+        PrintWriter writer = new PrintWriter(new File(NEW_GEOCENTER_INPUT_FILE_ROOT));
+        StringBuilder sb = new StringBuilder();
 
-    private List<WeatherData> getWeatherData(Integer time, Double level) {
-        return meteoForecastService.getWindDataListByObservationTimeAndLevel(time, level);
+        try {
+            sb.append("region");
+            sb.append(',');
+            sb.append("latitude");
+            sb.append(',');
+            sb.append("longitude");
+            sb.append(',');
+            sb.append("max_lat");
+            sb.append(',');
+            sb.append("min_lon");
+            sb.append(',');
+            sb.append("min_lat");
+            sb.append(',');
+            sb.append("max_lon");
+            sb.append('\n');
+
+            String line;
+            while ((line = csvReader.readLine()) != null) {
+                String[] data = line.split(",");
+                // getGeoBoundariesOfUkrainianRegion(regionName);
+
+                if(isNumeric(data[1]) && isNumeric(data[2])) {
+
+                    String regionName = data[0];
+
+                    LatLonRect bbox = getRectangularBoundariesOfUkrainianRegion(regionName);
+                    System.out.println(" ==> " + data[0] + " " + data[1] + " " + data[2] + " " + bbox);
+
+                    Double latitude = Double.valueOf(data[1]);
+                    Double longitude = Double.valueOf(data[2]);
+                    Double max_lat = bbox.getLatMax();
+                    Double min_lon = bbox.getLonMin();
+                    Double min_lat = bbox.getLatMin();
+                    Double max_lon = bbox.getLonMax();
+
+                    sb.append(regionName);
+                    sb.append(',');
+                    sb.append(latitude);
+                    sb.append(',');
+                    sb.append(longitude);
+                    sb.append(',');
+                    sb.append(max_lat);
+                    sb.append(',');
+                    sb.append(min_lon);
+                    sb.append(',');
+                    sb.append(min_lat);
+                    sb.append(',');
+                    sb.append(max_lon);
+                    sb.append('\n');
+
+                }
+            }
+            writer.write(sb.toString());
+            writer.close();
+            csvReader.close();
+
+        } catch(IOException ex){
+
+        }
     }
 
     private List<File> getFilesList(File folder){
@@ -61,7 +119,7 @@ public class LocationHandler {
         return files;
     }
 
-    private static boolean isNumeric(String strNum) {
+    private boolean isNumeric(String strNum) {
         if (strNum == null) {
             return false;
         }
@@ -75,260 +133,156 @@ public class LocationHandler {
         return true;
     }
 
-    private static Map<String, Coordinate> initGeoCenterCollection() {
+    public Region getRegion(String regionName){
+        for(Region region: regions){
+            if(region.getName().equals(regionName)){
+                return region;
+            }
+        }
+        return null;
+    }
+
+    public String getRegionName(LatLonRect rect){
+        for(Region region: regions){
+            if(region.getRectangularBoundaries().equals(rect)){
+                return region.getName();
+            }
+        }
+        return null;
+    }
+
+    private List<Region> init() {
+        List<Region> regions = new ArrayList<>();
         try{
             BufferedReader csvReader = new BufferedReader(new FileReader(GEOCENTER_INPUT_FILE_ROOT));
             String line;
             while ((line = csvReader.readLine()) != null) {
                 String[] data = line.split(",");
-                String region = data[0];
                 if(isNumeric(data[1]) && isNumeric(data[2])) {
+                    String regionName = data[0];
+                    List<LatLonPoint>arbitraryBoundaries = getArbitraryBoundariesOfUkrainianRegion(regionName);
+
                     Double latitude = Double.valueOf(data[1]);
                     Double longitude = Double.valueOf(data[2]);
-                    geocenter.put(region, new Coordinate(latitude, longitude));
+
+                    Double max_lat = Double.valueOf(data[3]);
+                    Double min_lon = Double.valueOf(data[4]);
+                    Double min_lat = Double.valueOf(data[5]);
+                    Double max_lon = Double.valueOf(data[6]);
+
+                    regions.add(
+                            new Region(
+                                    regionName,
+                                    new LatLonPointImpl(latitude,longitude),
+                                    new LatLonRect(
+                                            new LatLonPointImpl(max_lat,min_lon),
+                                            new LatLonPointImpl(min_lat,max_lon)),
+                                    arbitraryBoundaries));
                 }
             }
             csvReader.close();
         } catch(IOException ex){
             ex.printStackTrace();
         }
-        return geocenter;
+        return regions;
     }
 
-    private Coordinate getGeoCenterCoord(String regionName){
-        for (Map.Entry<String, Coordinate> entry : geocenter.entrySet()) {
-            String key = entry.getKey();
-            Coordinate value = entry.getValue();
-            if(key.equals(regionName)){
-                return value;
+    private File getTargetRegionFile(String regionName){
+        List<File> boundariesFiles = getFilesList(new File(BOUNDARIES_INPUT_FILES_DIR_ROOT));
+        for(File file: boundariesFiles){
+            if(file.getName().contains(regionName)){
+                return file;
             }
         }
         return null;
     }
 
-    private List<Coordinate> getBoundaries(File file){
-        List<Coordinate> coords = new ArrayList<>();
+    public List<LatLonPoint> getArbitraryBoundariesOfUkrainianRegion(String regionName){
+        File file = getTargetRegionFile(regionName);
+
+        List<LatLonPoint> points = new ArrayList<>();
 //        String jsonArray = null;
         try{
             ObjectMapper mapper = new ObjectMapper();
             JsonNode point = new ObjectMapper().readValue(file, JsonNode.class);
             point.forEach(array -> {
-                coords.add(new Coordinate(array.at("/0").asDouble(), array.at("/1").asDouble()));
+                LatLonPointImpl pt = new LatLonPointImpl(array.at("/0").asDouble(), array.at("/1").asDouble());
+                points.add(pt);
             });
 //            jsonArray = mapper.writeValueAsString(coords);
         } catch(IOException ex){
             ex.printStackTrace();
         }
 //        return jsonArray;
-        return coords;
+        return points;
     }
 
-    public void initBoundariesFor(Integer time, Double level) {
-        List<File> boundariesFiles = getFilesList(new File(BOUNDARIES_INPUT_FILES_DIR_ROOT));
-        for(File boundaryFile : boundariesFiles){
-            initRegionalCollectionsFor(time, level, boundaryFile);
+    private double getMaxLat(List<LatLonPoint>arr){
+        return arr.stream().mapToDouble(x -> x.getLatitude()).max().getAsDouble();
+    }
+
+    private double getMaxLon(List<LatLonPoint>arr){
+        return arr.stream().mapToDouble(x -> x.getLongitude()).max().getAsDouble();
+    }
+
+    private double getMinLat(List<LatLonPoint>arr){
+        return arr.stream().mapToDouble(x -> x.getLatitude()).min().getAsDouble();
+    }
+
+    private double getMinLon(List<LatLonPoint>arr){
+        return arr.stream().mapToDouble(x -> x.getLongitude()).min().getAsDouble();
+    }
+
+    private List<LatLonPoint> getArbitraryBoundariesOfUkrainianRegion(File file){
+        List<LatLonPoint> points = new ArrayList<>();
+//        String jsonArray = null;
+        try{
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode point = new ObjectMapper().readValue(file, JsonNode.class);
+            point.forEach(array -> {
+                points.add(new LatLonPointImpl(array.at("/0").asDouble(), array.at("/1").asDouble()));
+            });
+//            jsonArray = mapper.writeValueAsString(coords);
+        } catch(IOException ex){
+            ex.printStackTrace();
         }
-        // File boundaryFile = new File("src/main/resources/static/boundaries/all_regions/cherkasy_oblast.json");
+//        return jsonArray;
+        return points;
     }
 
-    private void initRegionalCollectionsFor(Integer time, Double level, File boundaryFile) {
-        List<WeatherData> weatherDataList = getWeatherData(time, level);
+//    private void initRegionalCollectionsFor(Integer time, Double level, File boundaryFile) {
+//        List<WeatherData> weatherDataList = getWeatherData(time, level);
 //        System.out.println("// ------------- // " + boundaryFile.getName() + " // ------------- //");
-        List<Coordinate> boundaries = getBoundaries(boundaryFile);
+//        List<Coordinate> boundaries = getBoundaries(boundaryFile);
 //        System.out.println("boundaries: " + boundaries.size());
 //        System.out.println("geocenter: " + geocenter.size());
-        for (String regionName : geocenter.keySet()) {
-            if (boundaryFile.getName().contains(regionName)) {
+//        for (String regionName : geocenter.keySet()) {
+//            if (boundaryFile.getName().contains(regionName)) {
 //                System.out.println(boundaryFile.getName() + " " + regionName);
-                List<WeatherData> innerDataList = new ArrayList<>();
-                for (WeatherData data : weatherDataList) {
-                    Coordinate point = new Coordinate(data.getWeatherPK().getLatitude(), data.getWeatherPK().getLongitude());
-                    if (isInnerPoint(point, boundaries)) {
-                        innerDataList.add(data);
-                    }
-                    setRegionalData(regionName, innerDataList);
-                }
-            }
-        }
-    }
-
-    private List<Weather> getWindDataUnitByForecast(List<WeatherData> weatherDataList, Integer observation, Integer forecast, Double level){
-        List<Weather> weather = new ArrayList<>();
-        for(WeatherData data : weatherDataList){
-            if(data.getWeatherPK().getObservation().equals(observation) &&
-                    data.getWeatherPK().getForecast().equals(forecast) &&
-                    data.getWeatherPK().getLevel().equals(level)){
-                WeatherPK pk = data.getWeatherPK();
-                Float temperature = data.getTemperature();
-                Float humidity = data.getHumidity();
-                Float cloudness = data.getCloudness();
-                Wind wind = new Wind(data.getUComponentOfWind(), data.getVComponentOfWind());
-                Integer windSpeed = wind.getWindSpeed();
-                Double angle = wind.getMeteorologicalAngle();
-                weather.add(new Weather(pk, temperature, humidity, cloudness, windSpeed, angle));
-            }
-        }
-        return weather;
-    }
-
-    private void initRegionalCollections(String region, List<WeatherData> data){
-//        regionalStatistics.put(new RegionPK(region, observation, forecast, level),
-//                                    new WeatherSummaryStatistics(temperatureStats, humidityStats, cloudnessStats, windSpeedStats));
-//        regionalWindDataList.put(new RegionPK(region, observation, forecast, level), weatherList);
-//        if(!data.isEmpty()){
-//            for(Integer observation : WeatherPK.getObservations()){
-//                for(Integer forecast : WeatherPK.getForecasts()) {
-//                    for(Double level : WeatherPK.getLevels()){
-//                        List<Weather> weatherList = getWindDataUnitByForecast(data, observation, forecast, level);
-//                        DoubleSummaryStatistics temperatureStats = getTemperatureStatistics(weatherList);
-//                        DoubleSummaryStatistics humidityStats = getHumidityStatistics(weatherList);
-//                        DoubleSummaryStatistics cloudnessStats = getCloudnessStatistics(weatherList);
-//                        DoubleSummaryStatistics windSpeedStats = getWindSpeedStatistics(weatherList);
-//                        if(!weatherList.isEmpty()){
-//                            regionalStatistics.put(new RegionPK(region, observation, forecast, level),
-//                                    new WeatherSummaryStatistics(temperatureStats, humidityStats, cloudnessStats, windSpeedStats));
-//                            regionalWindDataList.put(new RegionPK(region, observation, forecast, level), weatherList);
-//                        }
+//                List<WeatherData> innerDataList = new ArrayList<>();
+//                for (WeatherData data : weatherDataList) {
+//                    Coordinate point = new Coordinate(data.getWeatherPK().getLatitude(), data.getWeatherPK().getLongitude());
+//                    if (isInnerPoint(point, boundaries)) {
+//                        innerDataList.add(data);
 //                    }
+//                    setRegionalData(regionName, innerDataList);
 //                }
 //            }
 //        }
-    }
+//    }
 
-    private void setRegionalData(String region, List<WeatherData> innerDataList){
-        switch (region) {
-            case "cherkasy": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "chernihiv": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "chernivtsi": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "dnipropetrovsk": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "donetsk": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "ivanofrankivsk": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "kharkiv": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "kherson": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "khmelnytskyi": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "kiev": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "kirovohrad": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "luhansk": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "lviv": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "odessa": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "poltava": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "rivne": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "sumy": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "ternopil": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "vinnytsia": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "volyn": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "zakarpattia": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "zaporizhia": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-            case "zhytomyr": {
-                initRegionalCollections(region, innerDataList);
-                break;
-            }
-        }
-    }
-
-    private static DoubleSummaryStatistics getTemperatureStatistics(List<Weather>region){
-        DoubleSummaryStatistics stats = region.stream()
-                .mapToDouble((x) -> x.getTemperature())
-                .summaryStatistics();
-        return stats;
-    }
-
-    private static DoubleSummaryStatistics getHumidityStatistics(List<Weather>region){
-        DoubleSummaryStatistics stats = region.stream()
-                .mapToDouble((x) -> x.getHumidity())
-                .summaryStatistics();
-        return stats;
-    }
-
-    private static DoubleSummaryStatistics getCloudnessStatistics(List<Weather>region){
-//        Integer lon = (int)(key.getLongitude()*100);
-//            Integer longitude = Math.floorMod(lon,100);
-//            if(longitude.equals(25) || longitude.equals(75)){
-        DoubleSummaryStatistics stats = region.stream()
-                .filter((x)->!(Math.floorMod((int)(x.getWeatherPK().getLongitude()*100),100) == 25 || Math.floorMod((int)(x.getWeatherPK().getLongitude()*100),100) == 25))
-                .mapToDouble((x) -> x.getCloudness())
-                .summaryStatistics();
-        return stats;
-    }
-
-    private static DoubleSummaryStatistics getWindSpeedStatistics(List<Weather>region){
-        DoubleSummaryStatistics stats = region.stream()
-                .mapToDouble((x) -> x.getWindSpeed())
-                .summaryStatistics();
-        return stats;
-    }
-
-//    public void handle(File file){
-//        List<Coordinate> boundaries = getBoundaries(file); // new File("C:/Users/user/Desktop/data.txt")
-//        Coordinate point = new Coordinate(50.772, 29.486);
-//        System.out.println(isInnerPoint(point, boundaries));
-////        return isInnerPoint(point, boundaries);
+//    private static DoubleSummaryStatistics getTemperatureStatistics(List<Weather>region){
+//        DoubleSummaryStatistics stats = region.stream()
+//                .mapToDouble((x) -> x.getTemperature())
+//                .summaryStatistics();
+//        return stats;
+//    }
+//
+//    private static DoubleSummaryStatistics getHumidityStatistics(List<Weather>region){
+//        DoubleSummaryStatistics stats = region.stream()
+//                .mapToDouble((x) -> x.getHumidity())
+//                .summaryStatistics();
+//        return stats;
 //    }
 
 //    public List<Coordinate> getBoundaries(File file){
@@ -350,7 +304,7 @@ public class LocationHandler {
 //        return boundaries;
 //    }
 
-    private boolean isInnerPoint(Coordinate point, List<Coordinate> boundaries){
+    public boolean isInnerPoint(LatLonPoint point, List<LatLonPoint> boundaries){
 
         Location xAxis = findXAxis(point, boundaries);
         Location yAxis = findYAxis(point, boundaries);
@@ -414,11 +368,11 @@ public class LocationHandler {
         return (uppery || lowery) && (leftx || rightx);
     }
 
-    private Location findXAxis(Coordinate input, List<Coordinate> boundaries){
+    private Location findXAxis(LatLonPoint input, List<LatLonPoint> boundaries){
         Double fmin = Double.MAX_VALUE;
         Double smin = Double.MAX_VALUE;
-        List<Coordinate>firstList = null;
-        List<Coordinate>secondList = null;
+        List<LatLonPoint>firstList = null;
+        List<LatLonPoint>secondList = null;
         Double fminY = Double.MAX_VALUE;
         Double sminY = Double.MAX_VALUE;
 
@@ -481,11 +435,11 @@ public class LocationHandler {
         return new Location(firstList);
     }
 
-    private Location findYAxis(Coordinate input, List<Coordinate> boundaries){
+    private Location findYAxis(LatLonPoint input, List<LatLonPoint> boundaries){
         Double fmin = Double.MAX_VALUE;
         Double smin = Double.MAX_VALUE;
-        List<Coordinate>firstList = null;
-        List<Coordinate>secondList = null;
+        List<LatLonPoint>firstList = null;
+        List<LatLonPoint>secondList = null;
         Double fminX = Double.MAX_VALUE;
         Double sminX = Double.MAX_VALUE;
 
@@ -549,13 +503,5 @@ public class LocationHandler {
         return new Location(firstList);
     }
 
-    @Override
-    public String toString() {
-        return "LocationHandler{" +
-                "regions=" + regions +
-                ", meteoForecastService=" + meteoForecastService +
-                ", geocenter=" + geocenter +
-                '}';
-    }
 }
 
