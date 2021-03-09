@@ -1,6 +1,9 @@
-package application.rest.handler;
+package application.rest.controller;
 
+import application.rest.handler.LocationHandler;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.FileNotFoundException;
 
 @RestController
 @RequestMapping(value = "/location")
@@ -43,10 +46,12 @@ public class LocationController {
 ////        return ResponseEntity.ok(coords);
 ////    }
 //
-//    @RequestMapping(value="/init", method = RequestMethod.GET)
-//    public void init(){
-//        initialize();
-//    }
+    @RequestMapping(value="/init", method = RequestMethod.GET)
+    public String init() throws FileNotFoundException {
+        LocationHandler handler = new LocationHandler();
+        handler.writeIntoCsv();
+        return "ok";
+    }
 //
 //    private static void initialize(){
 //        for(Integer time : WeatherPK.getObservations()){

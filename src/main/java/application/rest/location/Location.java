@@ -1,20 +1,23 @@
 package application.rest.location;
 
+import ucar.unidata.geoloc.LatLonPoint;
+import ucar.unidata.geoloc.LatLonPoint;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class Location {
 
-    private List<Coordinate> locations = new ArrayList<>();
+    private List<LatLonPoint> locations = new ArrayList<>();
 
     public Location() {
     }
 
-    public Location(List<Coordinate> locations) {
+    public Location(List<LatLonPoint> locations) {
         this.locations = locations;
     }
 
-    public void add(Coordinate point){
+    public void add(LatLonPoint point){
         this.locations.add(point);
     }
 
@@ -50,37 +53,37 @@ public class Location {
         return getTopRightSideCoord()!=null;
     }
 
-    public Coordinate getUpperRightSideCoord(){
+    public LatLonPoint getUpperRightSideCoord(){
         return locations.get(0);
     }
 
-    public Coordinate getLowerRightSideCoord(){
+    public LatLonPoint getLowerRightSideCoord(){
         return locations.get(1);
     }
 
-    public Coordinate getUpperLeftSideCoord(){
+    public LatLonPoint getUpperLeftSideCoord(){
         return locations.get(2);
     }
 
-    public Coordinate getLowerLeftSideCoord(){
+    public LatLonPoint getLowerLeftSideCoord(){
         return locations.get(3);
     }
 
     // ------------------------------------------------ //
 
-    public Coordinate getBottomLeftSideCoord(){
+    public LatLonPoint getBottomLeftSideCoord(){
         return locations.get(0);
     }
 
-    public Coordinate getBottomRightSideCoord(){
+    public LatLonPoint getBottomRightSideCoord(){
         return locations.get(1);
     }
 
-    public Coordinate getTopLeftSideCoord(){
+    public LatLonPoint getTopLeftSideCoord(){
         return locations.get(2);
     }
 
-    public Coordinate getTopRightSideCoord(){
+    public LatLonPoint getTopRightSideCoord(){
         return locations.get(3);
     }
 
