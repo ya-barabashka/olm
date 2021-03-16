@@ -1,8 +1,10 @@
 package application.rest.service;
 
+import application.rest.geoentity.Region;
 import application.rest.handler.LocationHandler;
 import application.rest.handler.MeteoDataHandler;
 import application.rest.handler.WeatherData;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import ucar.ma2.InvalidRangeException;
 import ucar.unidata.geoloc.LatLonRect;
 
@@ -41,8 +43,12 @@ public class MeteoForecastService {
         return this.meteoDataHandler.isEmpty();
     }
 
-    public Boolean init(LatLonRect rect) throws IOException, InvalidRangeException, InterruptedException {
-        return this.meteoDataHandler.init(rect);
+//    public Boolean init(Region region) throws JsonProcessingException {
+//        return this.meteoDataHandler.init(region);
+//    }
+
+    public List<String> getMeteoJsonList() throws JsonProcessingException {
+        return this.meteoDataHandler.getMeteoJsonList();
     }
 
     public List<String> getValidationList(){

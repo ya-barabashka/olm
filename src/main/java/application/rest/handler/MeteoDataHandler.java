@@ -1,6 +1,8 @@
 package application.rest.handler;
 
+import application.rest.geoentity.Region;
 import application.rest.meteoentity.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import ucar.ma2.*;
 import ucar.nc2.dt.GridCoordSystem;
 import ucar.nc2.dt.GridDatatype;
@@ -29,7 +31,7 @@ public class MeteoDataHandler {
     public List validation = new ArrayList<String>();
     public List meteoParams = Arrays.asList("Pressure_reduced_to_MSL_msl", "Relative_humidity_isobaric", "Total_cloud_cover_isobaric", "Temperature_isobaric", "u-component_of_wind_isobaric", "v-component_of_wind_isobaric");
     public List altitudes = Arrays. asList("100000", "97500", "9500", "92500");
-//    private String pattern = "yyyy-MM-dd HH:mm:ss z";
+    //    private String pattern = "yyyy-MM-dd HH:mm:ss z";
     private String pattern = "yyyyMMdd";
     private String FILE_BASE_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod";
     private String FILE_COMPOUND_URL;
@@ -134,20 +136,16 @@ public class MeteoDataHandler {
 //
 //    }
 
-    private Meteo initWithParamForBBox(String paramName, LatLonPoint point1, LatLonPoint point2){
+    private Meteo initWithParamForBBox(String paramName, Region region){
         Meteo meteo = null;
         try (GridDataset dataset = GridDataset.open(FILE_LOCAL_PATH + "/" + FILE_NAME + ".grib2")) {
             GeoGrid grid = dataset.findGridByName(paramName);
             GridCoordSystem gcs = grid.getCoordinateSystem();
-            LatLonRect llbb_subset = new LatLonRect(point1, point2);
-            List<Range>ranges = gcs.getRangesFromLatLonRect(llbb_subset);
+            List<Range>ranges = gcs.getRangesFromLatLonRect(region.getRectangularBoundaries());
             GridDatatype gridDatatype = grid.subset(null, null, ranges.get(0), ranges.get(1));
 
             Array data = gridDatatype.readDataSlice(-1, -1, -1, -1);
             GridCoordSystem gcs2 = gridDatatype.getCoordinateSystem();
-
-            String regionName = locationHandler.getRegionName(llbb_subset);
-            List<LatLonPoint> regionArbitraryBoundaries = locationHandler.getArbitraryBoundariesOfUkrainianRegion(regionName);
 
             IndexIterator iter = data.getIndexIterator();
             switch(paramName){
@@ -156,7 +154,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[3], counter[2]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new Temperature(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -164,7 +162,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("33"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -174,7 +173,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[3], counter[2]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new RelativeHumidity(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -182,7 +181,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("30"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -192,7 +192,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[3], counter[2]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new VComponentOfWind(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -200,7 +200,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("30"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -210,7 +211,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[3], counter[2]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new UComponentOfWind(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -218,7 +219,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("30"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -228,7 +230,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[3], counter[2]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new CloudCover(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -236,7 +238,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("21"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -246,7 +249,7 @@ public class MeteoDataHandler {
                         float value = iter.getFloatNext();
                         int counter [] = iter.getCurrentCounter();
                         LatLonPoint point = gcs2.getLatLon(counter[2], counter[1]);
-                        if (locationHandler.isInnerPoint(point, regionArbitraryBoundaries)) {
+                        if (locationHandler.isInnerPoint(point, region.getArbitraryBoundaries())) {
                             meteo = new PressureToMSL(
                                     new WeatherPK(
                                             point.getLatitude(),
@@ -254,7 +257,8 @@ public class MeteoDataHandler {
                                             Double.valueOf("0"),
                                             Integer.valueOf(this.observationHour),
                                             Integer.valueOf(this.validationHour)),
-                                    value);
+                                    value,
+                                    region);
                         }
                     }
                     break;
@@ -264,27 +268,27 @@ public class MeteoDataHandler {
                 }
             }
 
-            System.out.println(
-                    "param: " + paramName + " " +
-                    "region: " + regionName + " " +
-                    "meteo: " + meteo.getSummaryStatistics());
-
         } catch (IOException | InvalidRangeException e) {
             e.printStackTrace();
         }
         return meteo;
     }
 
-    public Boolean init(LatLonRect rect) throws IOException, InterruptedException, InvalidRangeException {
+    public List<String> getMeteoJsonList() throws JsonProcessingException {
 
         long startTime = System.nanoTime();
 
-        for(String param: selectedMeteoParams){
-            Meteo meteo = initWithParamForBBox(
-                    param,
-                    new LatLonPointImpl(rect.getLatMax(), rect.getLonMin()),
-                    new LatLonPointImpl(rect.getLatMin(), rect.getLonMax()));
-            meteo.clear();
+        List<String>meteoJsonList = new ArrayList<>();
+
+        for (Region region : LocationHandler.regions) {
+            for (String param : selectedMeteoParams) {
+                Meteo meteo = initWithParamForBBox(param, region);
+                if(!meteo.toJson().isEmpty()){
+                    meteoJsonList.add(meteo.toJson());
+                    System.out.println(meteo.toJson());
+                    meteo.clear();
+                }
+            }
         }
 
         long elapsedTime = System.nanoTime() - startTime;
@@ -292,10 +296,17 @@ public class MeteoDataHandler {
         System.out.println("Total execution time to create 1000K objects in Java in millis: "
                 + elapsedTime / 1000000);
 
-        return true;
+        return meteoJsonList;
     }
 
-//    public List<WeatherData> getWindDataListByObservationTimeAndLevel(Integer observation, Double level){
+//    public List<String> getMeteoJsonList() throws JsonProcessingException {
+//        for (Region region : LocationHandler.regions) {
+//            init(region);
+//        }
+//        return meteoJsonList;
+//    }
+
+    //    public List<WeatherData> getWindDataListByObservationTimeAndLevel(Integer observation, Double level){
 //        List<WeatherData> selectedWeatherDataList = new ArrayList<>();
 //        List<WeatherData> weatherDataList = getWindDataListByObservationTime(observation);
 //
@@ -493,7 +504,7 @@ public class MeteoDataHandler {
     }
 
     public List<String> getValidationList(){
-         return IntStream.rangeClosed(0, 384)
+        return IntStream.rangeClosed(0, 384)
                 .mapToObj(Integer::toString)
                 .collect(Collectors.toList());
     }

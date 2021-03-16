@@ -133,6 +133,15 @@ public class LocationHandler {
         return true;
     }
 
+    public Region getRegion(String regionName){
+        for(Region region: regions){
+            if(region.getName().equals(regionName)){
+                return region;
+            }
+        }
+        return null;
+    }
+
     public String getRegionName(LatLonRect rect){
         for(Region region: regions){
             if(region.getRectangularBoundaries().equals(rect)){
